@@ -1,3 +1,5 @@
+//A simple client application using TCPv6-Sockets
+#define _CRT_SECURE_NO_WARNINGS
 #pragma comment(lib, "Ws2_32.lib")
 #include <stdio.h>
 #include <stdlib.h>
@@ -5,32 +7,72 @@
 #include <Winsock2.h>
 #include <ws2tcpip.h>
 
+#define DEFAULT_FAMILY      AF_INET6    //Protocol family - in this case force IPv6
+#define DEFAULT_SOCKTYPE    SOCK_STREAM //TCP uses SOCK_STREAM, UDP uses SOCK_DGRAM
+#define DEFAULT_PORT        "1234"      //The port for testing
+#define BUFFER_SIZE         1024        //The buffer size for the demonstration
 
-#define DEFAULT_FAMILY      AF_INET6    // Protocol family - in this case force IPv6
-#define DEFAULT_SOCKTYPE    SOCK_STREAM // TCP uses SOCK_STREAM, UDP uses SOCK_DGRAM
-#define DEFAULT_PORT        "1234"      // The port for testing
-#define BUFFER_SIZE         1024        // The buffer size for the demonstration
+//data structure that will be sent to the server
+struct package {
+    char sNumber[7];
+    char txt[BUFFER_SIZE];
+}; 
+
+char* init_package(struct package p) {
+    char* package_ZK = NULL;
+    int sNumberLength = strlen(p.sNumber);
+    int txtLength = strlen(p.txt);
+    int totalLength = sNumberLength + txtLength - 1;
+
+    package_ZK = (char*)malloc(totalLength * sizeof(char)); //allocate memory for the package
+
+    if (package_ZK == NULL) {
+        printf("Error on building package.\n");
+        EXIT_FAILURE;
+    }
+
+    int i, j;
+
+    for (i = 0; i < sNumberLength; i++) {
+        package_ZK[i] = p.sNumber[i];
+    }
+
+    for (j = 0, i = 0; j <= txtLength; i++, j++) {
+        package_ZK[i] = p.txt[j];
+    }
+
+    return package_ZK;
+}
 
 int main(int argc, char* argv[]) {
-    char buffer[BUFFER_SIZE];
+    char receivebuffer[BUFFER_SIZE];
+    char sendbuffer[BUFFER_SIZE];
     SOCKET ClientSocket = INVALID_SOCKET;
-    struct addrinfo* result = NULL, * ptr = NULL, hints;
+    struct addrinfo* result = NULL, hints;
     int iResult;
-    int recvbuflen = BUFFER_SIZE;
-    const char* sendbuf = "this is a test";
+    int bufferLength = BUFFER_SIZE;
 
-    // Initialise TCP for Windows ("Winsock").
+    //if (argc < 3) {
+    //    fprintf(stderr, "Application needs IP adress, sNumber and portnumber as arguments.\n");
+    //    exit(1);
+    //}
+
+    const char* ip = argv[1];
+    const char* port = argv[2];
+    const char* sNumber = argv[3];
+
+    //initialise TCP for Windows ("Winsock")
     WORD wVersionRequested; //WORD = unsigned long data type, version of the Winsocket
-    WSADATA wsaData; // stores information about the Winsocket implementation
+    WSADATA wsaData; //stores information about the Winsocket implementation
     wVersionRequested = MAKEWORD(2, 2); //MAKEWORD = macro to request version 2.2
 
     iResult = WSAStartup(wVersionRequested, &wsaData); //makes it possible for the process to run WINSOCK.DLL
     if (iResult != 0) {
-        printf("\nError on initialising Winsock.\n");
+        printf("Error on initialising Winsock.\n");
         exit(1);
     }
     else {
-        printf("\nWinsock initialised.\n");
+        printf("Winsock initialised.\n");
     }
 
     ZeroMemory(&hints, sizeof(hints)); //Macro to fill a block of memory with zeros
@@ -45,84 +87,60 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
 
-    // Attempt to connect to the first address returned by
-    // the call to getaddrinfo
-    ptr = result;
-
-    // Create a SOCKET for connecting to server
-    ClientSocket = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
+    //create a socket that will connect to the server
+    ClientSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
 
     if (ClientSocket == INVALID_SOCKET) {
         printf("Error at socket(): %ld\n", WSAGetLastError());
         freeaddrinfo(result);
         WSACleanup();
-        return 1;
+        exit(1);
     }
 
-    // Connect to server.
-    iResult = connect(ClientSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
+    //connect to the server
+    iResult = connect(ClientSocket, result->ai_addr, (int)result->ai_addrlen);
     if (iResult == SOCKET_ERROR) {
         closesocket(ClientSocket);
         ClientSocket = INVALID_SOCKET;
     }
 
-    // Should really try the next address returned by getaddrinfo
-    // if the connect call failed
-    // But for this simple example we just free the resources
-    // returned by getaddrinfo and print an error message
-
+    //free the address information that getaddrinfo has returned
     freeaddrinfo(result);
 
     if (ClientSocket == INVALID_SOCKET) {
-        printf("Unable to connect to server!\n");
+        printf("Unable to connect to server.\n");
         WSACleanup();
-        return 1;
+        exit(1);
     }
 
-    // Send an initial buffer
-    iResult = send(ClientSocket, sendbuf, (int)strlen(sendbuf), 0);
-    if (iResult == SOCKET_ERROR) {
-        printf("send failed: %d\n", WSAGetLastError());
-        closesocket(ClientSocket);
-        WSACleanup();
-        return 1;
+    printf("You are now connected.\n");
+
+    while (1) {
+        gets(sendbuffer);
+
+        //-------------------------------TODO: send package instead of sendbuffer to the server-------------------------------
+        //struct package p; //build new data package
+        //strcpy(p.sNumber, sNumber); //fill data package with data
+        //strcpy(p.txt, sendbuffer);
+
+        //char* package_ZK = NULL;
+        //package_ZK = init_package(p); //pointer to the built data package
+
+
+        iResult = send(ClientSocket, sendbuffer, (int)strlen(sendbuffer), 0);
+        if (iResult == 0 || iResult == SOCKET_ERROR) {
+            printf("Server has disconnected.\n");
+            closesocket(ClientSocket);
+            WSACleanup();
+            exit(1);
+        }
+        iResult = recv(ClientSocket, receivebuffer, bufferLength, 0);
+        if (iResult > 0) {
+            receivebuffer[iResult] = '\0';
+            printf("Message: %s\n", receivebuffer);
+        }
     }
-
-    printf("Bytes Sent: %ld\n", iResult);
-
-    // shutdown the connection for sending since no more data will be sent
-    // the client can still use the ConnectSocket for receiving data
-    iResult = shutdown(ClientSocket, SD_SEND);
-    if (iResult == SOCKET_ERROR) {
-        printf("shutdown failed: %d\n", WSAGetLastError());
-        closesocket(ClientSocket);
-        WSACleanup();
-        return 1;
-    }
-
-    // Receive data until the server closes the connection
-    do {
-        iResult = recv(ClientSocket, buffer, recvbuflen, 0);
-        if (iResult > 0)
-            printf("Bytes received: %d\n", iResult);
-        else if (iResult == 0)
-            printf("Connection closed\n");
-        else
-            printf("recv failed: %d\n", WSAGetLastError());
-    } while (iResult > 0);
-
-    // shutdown the send half of the connection since no more data will be sent
-    iResult = shutdown(ClientSocket, SD_SEND);
-    if (iResult == SOCKET_ERROR) {
-        printf("shutdown failed: %d\n", WSAGetLastError());
-        closesocket(ClientSocket);
-        WSACleanup();
-        return 1;
-    }
-
-    // cleanup
     closesocket(ClientSocket);
     WSACleanup();
-
     return 0;
 }
