@@ -9,7 +9,6 @@
 
 #define DEFAULT_FAMILY      AF_INET6    //Protocol family - in this case force IPv6
 #define DEFAULT_SOCKTYPE    SOCK_STREAM //TCP uses SOCK_STREAM, UDP uses SOCK_DGRAM
-#define DEFAULT_PORT        "1234"      //The port for testing
 #define BUFFER_SIZE         1024        //The buffer size for the demonstration
 
 //data structure that will be sent to the server
@@ -22,7 +21,8 @@ char* init_package(struct package p) {
     char* package_ZK = NULL;
     int sNumberLength = strlen(p.sNumber);
     int txtLength = strlen(p.txt);
-    int totalLength = sNumberLength + txtLength - 1;
+    int totalLength = sNumberLength + 2 + txtLength - 1;
+    char spacer[2] = { ':', ' ' };
 
     package_ZK = (char*)malloc(totalLength * sizeof(char)); //allocate memory for the package
 
@@ -31,13 +31,19 @@ char* init_package(struct package p) {
         EXIT_FAILURE;
     }
 
-    int i, j;
+    int i = 0;
+    int j = 0;
 
-    for (i = 0; i < sNumberLength; i++) {
+    for (i; i < sNumberLength; i++) {
         package_ZK[i] = p.sNumber[i];
     }
 
-    for (j = 0, i = 0; j <= txtLength; i++, j++) {
+    package_ZK[i] = spacer[0];
+    i++;
+    package_ZK[i] = spacer[1];
+    i++;
+    
+    for (j = 0, i; j <= txtLength; i++, j++) {
         package_ZK[i] = p.txt[j];
     }
 
@@ -52,10 +58,10 @@ int main(int argc, char* argv[]) {
     int iResult;
     int bufferLength = BUFFER_SIZE;
 
-    //if (argc < 3) {
-    //    fprintf(stderr, "Application needs IP adress, sNumber and portnumber as arguments.\n");
-    //    exit(1);
-    //}
+    if (argc < 3) {
+        fprintf(stderr, "Application needs IP adress, port and S-Number as arguments.\n");
+        exit(1);
+    }
 
     const char* ip = argv[1];
     const char* port = argv[2];
@@ -80,7 +86,7 @@ int main(int argc, char* argv[]) {
     hints.ai_socktype = DEFAULT_SOCKTYPE;
     hints.ai_protocol = IPPROTO_TCP; //specifies the TCP protocol
 
-    iResult = getaddrinfo("::1", DEFAULT_PORT, &hints, &result);
+    iResult = getaddrinfo(ip, port, &hints, &result);
     if (iResult != 0) {
         printf("getaddrinfo failed: %d\n", iResult);
         WSACleanup();
@@ -118,26 +124,25 @@ int main(int argc, char* argv[]) {
     while (1) {
         gets(sendbuffer);
 
-        //-------------------------------TODO: send package instead of sendbuffer to the server-------------------------------
-        //struct package p; //build new data package
-        //strcpy(p.sNumber, sNumber); //fill data package with data
-        //strcpy(p.txt, sendbuffer);
+        struct package p; //build new data package
+        strcpy(p.sNumber, sNumber); //fill data package with data
+        strcpy(p.txt, sendbuffer);
 
-        //char* package_ZK = NULL;
-        //package_ZK = init_package(p); //pointer to the built data package
+        char* package_ZK = NULL;
+        package_ZK = init_package(p); //pointer to the built data package
 
-
-        iResult = send(ClientSocket, sendbuffer, (int)strlen(sendbuffer), 0);
+        iResult = send(ClientSocket, package_ZK, (int)strlen(package_ZK), 0);
         if (iResult == 0 || iResult == SOCKET_ERROR) {
             printf("Server has disconnected.\n");
             closesocket(ClientSocket);
             WSACleanup();
             exit(1);
         }
+
         iResult = recv(ClientSocket, receivebuffer, bufferLength, 0);
         if (iResult > 0) {
             receivebuffer[iResult] = '\0';
-            printf("Message: %s\n", receivebuffer);
+            printf("%s\n", receivebuffer);
         }
     }
     closesocket(ClientSocket);
