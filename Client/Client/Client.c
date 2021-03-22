@@ -37,7 +37,7 @@ int main(int argc, char* argv[]) {
     struct Packet message_serv;
    
     if (argc < 4) {
-        fprintf(stderr, "Application needs IP adress, port and S-Number as arguments.\nUsage: Client.exe ::1 1234 s12345\n");
+        fprintf(stderr, "Application needs IP adress, port and name as arguments.\nUsage: Client.exe ::1 1234 s12345\n");
         exit(1);
     }
     if (argc > 4) {
@@ -46,7 +46,7 @@ int main(int argc, char* argv[]) {
 
     //initalise datastruct
     strcpy(message_cli.text, " ");
-    strcpy(message_cli.sNumber, argv[3]);
+    strcpy(message_cli.name, argv[3]);
     
     const char* ip = argv[1];
     const char* port = argv[2];
@@ -93,7 +93,7 @@ int main(int argc, char* argv[]) {
     printf("You are now connected.\n");
 
     while (1) {
-        printf("%s> ", &message_cli.sNumber);
+        printf("%s> ", &message_cli.name);
         gets(&message_cli.text);
         returnValue = send(clientSocket, &message_cli, sizeof(message_cli), 0);
         if (returnValue == 0 || returnValue == SOCKET_ERROR) {
@@ -105,7 +105,7 @@ int main(int argc, char* argv[]) {
 
         returnValue = recv(clientSocket, &message_serv, sizeof(message_serv), 0);
         if (returnValue > 0) {
-            printf("%s> %s\n",message_serv.sNumber, message_serv.text);
+            printf("%s> %s\n",message_serv.name, message_serv.text);
         }
     }
 
